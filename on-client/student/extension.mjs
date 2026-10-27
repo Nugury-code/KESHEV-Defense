@@ -609,9 +609,12 @@ export function createStudentView() {
             guide: '현재 AI 이용 시간인지 확인하세요.',
           },
           {
-            codes: ['WB_CLCO_RATE_LIMITED', 'WB_CLCO_TIMEOUT', 'REQUEST_TIMEOUT', 'ENGINE_TIMEOUT', 'TIMEOUT'],
-            title: '요청 제한·시간 초과·네트워크',
-            guide: '잠시 뒤 「현재 API 연결 점검」 버튼을 직접 눌러 다시 점검하세요. 자동으로 다시 요청하지 않습니다.',
+            codes: [
+              'WB_CLCO_RATE_LIMITED', 'WB_CLCO_TIMEOUT', 'REQUEST_TIMEOUT', 'ENGINE_TIMEOUT', 'TIMEOUT',
+              'WB_CLCO_NETWORK_ERROR', 'WB_CLCO_SERVER_UNAVAILABLE', 'NETWORK_ERROR', 'SERVICE_UNAVAILABLE',
+            ],
+            title: '요청 제한·시간 초과·네트워크·서버 연결 실패',
+            guide: '네트워크나 서버 연결 상태를 확인하고, 잠시 뒤 「현재 API 연결 점검」 버튼을 직접 눌러 다시 점검하세요. 자동으로 다시 요청하지 않습니다.',
           },
           {
             codes: ['WB_CLCO_CANCELLED', 'CANCELLED', 'REQUEST_CANCELLED'],
