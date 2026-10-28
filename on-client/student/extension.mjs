@@ -789,6 +789,114 @@ export function createStudentView() {
       }
       return view;
     },
-    renderAction() { return '학생 구현 대기: 현재 사건·조치·실제 대상·사람 확인·ACK와 원천 효과·unknown을 구분하세요.'; },
+    renderAction({ status, event, actionId, target, receipt, observation, message, confirmationExpiresAt, error } = {}) {
+      // 매번 새로 그리므로 새 값이 오면 이전 대상·요청·결과가 남지 않습니다. 버튼·요청·티켓은 만들지 않습니다.
+      const root = document.createElement('div');
+      const addText = (tag, text) => {
+        const node = document.createElement(tag);
+        node.textContent = String(text);
+        root.appendChild(node);
+        return node;
+      };
+      const isText = (value) => typeof value === 'string' && value !== '';
+      const eventId = isText(event?.id) ? event.id : null;
+      const requestId = isText(receipt?.requestId) ? receipt.requestId : null;
+
+      // 현재 사건·조치와 맞지 않는 요청 정보는 현재 결과로 쓰지 않습니다.
+      const receiptEventMismatch = isText(receipt?.eventId) && eventId !== null && receipt.eventId !== eventId;
+      const receiptActionMismatch = isText(receipt?.actionId) && isText(actionId) && receipt.actionId !== actionId;
+      if (receiptEventMismatch || receiptActionMismatch) {
+        addText('p', '결과 불명(unknown) · 현재 사건·조치와 맞지 않는 요청 정보입니다.');
+        addText('p', '이 요청 정보를 현재 조치의 결과로 쓰지 않습니다. 효과 없음으로도 성공으로도 판단하지 말고, 제공 화면의 「연동 시스템 결과만 재조회」로 확인하세요.');
+        return root;
+      }
+
+      const confirmed = status === 'succeeded' && observation?.effectApplied === true;
+      const knownStatuses = [
+        'idle', 'loading', 'executing', 'prepared', 'pending', 'succeeded',
+        'denied', 'failed', 'unknown', 'error', 'expired',
+      ];
+      // succeeded 이지만 효과 관측이 없거나 알 수 없는 status 는 결과 불명으로 처리합니다.
+      const shown = status === 'succeeded' && !confirmed
+        ? 'unknown'
+        : knownStatuses.includes(status) ? status : 'unknown';
+
+      const headlines = {
+        idle: '아직 미실행(idle)',
+        loading: '조치 준비 또는 결과 조회 중(loading) · 결과가 아직 확인되지 않았습니다',
+        executing: '서버에 전달 중(executing) · 결과가 아직 확인되지 않았습니다',
+        prepared: '준비됨·미실행(prepared) · 아직 서버에 전달하지 않았습니다',
+        pending: '서버 접수·처리 중(pending) · 효과가 아직 확인되지 않았습니다',
+        succeeded: '효과 확인(succeeded)',
+        denied: '거절(denied)',
+        failed: '실패(failed)',
+        unknown: '결과 불명(unknown) · 효과 없음으로도 성공으로도 판단하지 마세요',
+        expired: '확인 기한 지남(expired) · 이번 준비로는 집행할 수 없습니다. 다시 준비하세요',
+        error: '요청 처리 안 됨(error)',
+      };
+      addText('p', headlines[shown]);
+
+      if (shown === 'pending') {
+        addText('p', '서버가 요청을 받았다는 확인(ACK)일 뿐이며, 실제 효과가 확인된 것이 아닙니다.');
+      }
+      if (shown === 'unknown') {
+        if (status === 'succeeded') {
+          addText('p', '상태는 succeeded 이지만 effectApplied: true 인 효과 관측이 없어 효과 확인으로 표시하지 않습니다.');
+        }
+        addText('p', '제공 화면의 「연동 시스템 결과만 재조회」로 결과를 다시 확인하세요.');
+      }
+      if (shown === 'expired') {
+        addText('p', '확인 기한이 지났습니다. 제공 화면에서 조치를 다시 준비하세요.');
+      }
+      if (shown === 'error') {
+        const code = isText(error?.code) ? error.code : 'AI_REQUEST_UNVERIFIED';
+        const text = isText(error?.message) ? error.message : '오류 내용을 확인할 수 없습니다.';
+        addText('p', `오류 코드: ${code}`);
+        addText('p', `안내 메시지: ${text}`);
+      }
+      if ((shown === 'denied' || shown === 'failed') && isText(message)) {
+        addText('p', `안내: ${message}`);
+      } else if (shown !== 'idle' && shown !== 'error' && isText(message)) {
+        addText('p', `안내: ${message}`);
+      }
+
+      // 받은 범위에서만 현재 사건·조치·대상·요청 정보를 글자로 보여 줍니다.
+      if (eventId !== null) addText('p', `사건 ID: ${eventId}`);
+      const evidenceIds = Array.isArray(event?.evidence)
+        ? event.evidence.map((item) => item?.id).filter(isText)
+        : [];
+      if (evidenceIds.length > 0) addText('p', `근거 ID: ${evidenceIds.join(', ')}`);
+      if (isText(actionId)) addText('p', `조치 ID: ${actionId}`);
+      if (target && isText(String(target.id ?? ''))) {
+        addText('p', `대상 ID: ${String(target.id)} · 세대(generation): ${String(target.generation ?? '확인 불가')}`);
+      }
+      if (requestId !== null) addText('p', `요청 ID: ${requestId}`);
+      if (isText(receipt?.receiptId)) addText('p', `접수 영수증 ID(receiptId): ${receipt.receiptId}`);
+      if (receipt?.version !== undefined && receipt?.version !== null) addText('p', `버전: ${String(receipt.version)}`);
+      if (shown === 'prepared' && isText(confirmationExpiresAt)) addText('p', `사람 확인 기한: ${confirmationExpiresAt}`);
+      if (receipt?.superseded === true) addText('p', '이전 조회는 최신 결과를 대신하지 않습니다(superseded).');
+
+      if (confirmed) {
+        addText('p', `관측 시각: ${String(observation.observedAt ?? '확인 불가')}`);
+        addText('p', 'effectApplied: true');
+      }
+
+      if (shown === 'idle') {
+        const supported = Array.isArray(event?.supportedActions) ? event.supportedActions : null;
+        if (supported !== null && supported.length === 0) {
+          addText('p', '이 기록에는 연동 시스템이 지원하는 조치가 없어 조치 준비 버튼이 나오지 않습니다(정상).');
+        }
+      }
+      if (['loading', 'executing', 'prepared', 'pending', 'unknown'].includes(shown)) {
+        addText('p', '조치 준비·집행·결과 재조회는 제공 화면의 버튼으로 합니다. 「조치 화면 취소」는 이미 서버에 전달된 조치 효과를 되돌리지 않습니다.');
+      }
+
+      // 성공적으로 그린 화면에만 현재 사건·요청 표식을 붙입니다.
+      if (shown !== 'idle' && shown !== 'error' && eventId !== null && requestId !== null) {
+        root.setAttribute('data-student-action-event', eventId);
+        root.setAttribute('data-student-action-request', requestId);
+      }
+      return root;
+    },
   };
 }
